@@ -1,0 +1,10 @@
+{
+    "yaml.customTags": [
+        "!import sequence",
+        "!override sequence",
+    ],
+    "python.testing.pytestArgs": [
+        "test"
+    ],
+    "python.testing.pytestEnabled": true
+}

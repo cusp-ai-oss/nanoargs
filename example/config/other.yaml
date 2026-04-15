@@ -1,0 +1,10 @@
+baz:
+  1: asddf
+  2: asdf
+qux: null
+asdf:
+  asdf: [1, 2, 3]
+  b: 2
+foo: 5
+bar: 5
+sub: {}

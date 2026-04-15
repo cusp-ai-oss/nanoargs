@@ -1,0 +1,60 @@
+site_name: NanoArgs
+site_description: A tiny configuration loader and CLI framework with subcommand support, built around Pydantic models
+site_url: https://cusp-ai-oss.github.io/nanoargs
+repo_url: https://github.com/cusp-ai-oss/nanoargs
+repo_name: cusp-ai-oss/nanoargs
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.expand
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_symbol_type_heading: true
+            members_order: source
+            merge_init_into_class: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Configuration Guide: configuration.md
+  - Subcommands: subcommands.md
+  - Path Syntax: path-syntax.md
+  - API Reference:
+      - NanoArgs: api/cli.md
+      - Path & Chunks: api/path.md
+      - Loader: api/loader.md
+  - Changelog: changelog.md

@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Testing & tools
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Notebooks
+notebooks/
+.ipynb_checkpoints/
+
+# MkDocs build output
+site/

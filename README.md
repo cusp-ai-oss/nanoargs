@@ -100,4 +100,4 @@ See the [Subcommands guide](docs/subcommands.md) for full details.
 
 ## License
 
-MIT
+Apache 2.0

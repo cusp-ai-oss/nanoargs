@@ -1,15 +1,18 @@
 [project]
 name = "nanoargs"
-version = "0.5.0"
+version = "0.1.1"
 description = "A tiny config loader and CLI framework built around Pydantic models"
 readme = "README.md"
-license = "MIT"
-authors = [{ name = "Jonas Köhler", email = "jonas@cusp.ai" }]
+license = "Apache-2.0"
+authors = [
+    { name = "Jonas Köhler", email = "jonas@cusp.ai" },
+    { name = "CuspAI OpenSource Team", email = "opensource@cusp.ai" },
+]
 requires-python = ">=3.12"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",

@@ -1,3 +1,6 @@
+# Copyright 2024-2026 Cusp AI
+# SPDX-License-Identifier: Apache-2.0
+
 import pathlib
 import textwrap
 from typing import Annotated
@@ -5,7 +8,7 @@ from typing import Annotated
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
-from nanoargs.cli import Nested, NanoArgs
+from nanoargs.cli import NanoArgs, Nested
 
 
 class TrainConfig(BaseModel):

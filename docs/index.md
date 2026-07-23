@@ -7,7 +7,8 @@ NanoArgs provides a clean interface for loading YAML configuration files with ad
 ## Features
 
 - **YAML Configuration Loading** -- Load and merge multiple YAML files with left-to-right precedence
-- **Smart Imports** -- Use `!import` directives with deep-merging and paths resolved relative to the importing file
+- **Smart Imports** -- Use `!import` to load one file, its path resolved relative to the importing file
+- **Composable Merging** -- Use `!merge` to deep-merge imports and inline mappings left to right
 - **Runtime Overrides** -- Apply point overrides using JSONPath-like syntax via CLI flags
 - **Pydantic Validation** -- Automatic validation and type conversion using your Pydantic models
 - **Schema Generation** -- Auto-generated JSON schema output with beautiful formatting

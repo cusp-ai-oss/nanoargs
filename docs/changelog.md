@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+**Composable merging — one job per tag**:
+
+- Added `!merge` — deep-merges a sequence of mappings (files via `!import`, inline mappings, or any mix) left to right; later entries win, `None` entries are skipped, non-mapping entries raise a positional error.
+- **Breaking**: `!import` now loads exactly one file — a scalar path (`!import file.yaml`) or a one-element sequence (`!import [file.yaml]`). Multiple paths raise an error pointing at `!merge` with one `!import` per file.
+- Fixed `!import` to load imported files with the referring loader's class, so tags registered on `NanoArgsLoader` subclasses now work inside imported files.
+
 ## 0.5.0
 
 **Simplification pass — remove magic, fix path restrictions**:

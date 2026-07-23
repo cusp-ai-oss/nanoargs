@@ -35,11 +35,12 @@ model:
 **experiment.yaml** (with imports):
 
 ```yaml
-!import
-  - base.yaml
+!merge
+  - !import [base.yaml]
+  - learning_rate: 0.001
 ```
 
-Or merge with local overrides by importing into a specific field:
+Or import into a specific field:
 
 ```yaml
 mode: experiment

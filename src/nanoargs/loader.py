@@ -12,7 +12,7 @@ from pathlib import Path as FSPath
 from typing import overload
 
 import yaml
-from yaml import SequenceNode
+from yaml import ScalarNode, SequenceNode
 
 from nanoargs.path import JsonValue, Path, is_json_value
 
@@ -173,43 +173,69 @@ def deep_merge(base: JsonValue, incoming: JsonValue) -> JsonValue:
     return copy.deepcopy(incoming)
 
 
-def import_constructor(loader: yaml.Loader, node: SequenceNode) -> JsonValue:
-    """YAML constructor for !import. Loads and deep-merges imported files."""
-    import_paths: list[JsonValue] = loader.construct_sequence(node)
+def import_constructor(loader: yaml.Loader, node: yaml.Node) -> JsonValue:
+    """YAML constructor for !import. Loads a single file, path relative to the importing file.
+
+    Accepts a scalar path (`!import file.yaml`) or a one-element sequence
+    (`!import [file.yaml]`). Combining multiple files is `!merge`'s job.
+    """
+    import_path: JsonValue
+    if isinstance(node, SequenceNode):
+        paths: list[JsonValue] = loader.construct_sequence(node)
+        if len(paths) != 1:
+            raise ValueError(
+                "!import takes a single path; combine files with !merge and one !import per file"
+            )
+        import_path = paths[0]
+    elif isinstance(node, ScalarNode):
+        import_path = loader.construct_scalar(node)
+    else:
+        raise ValueError("!import takes a path or a one-element sequence")
+    if not isinstance(import_path, str) or not import_path:
+        raise ValueError("Import path must be a non-empty string")
 
     # Determine base directory of the referring file (if available); fall back to CWD.
     base_dir = FSPath(str(getattr(loader, "name", "."))).parent.resolve()
 
     stack = _loading_files.stack
+    resolved = (base_dir / import_path).resolve()
+    resolved_str = str(resolved)
+    if resolved_str in stack:
+        raise ValueError(f"Circular import detected: {resolved_str}")
+    stack.add(resolved_str)
+    try:
+        with open(resolved, "r") as f:
+            # Load with the referring loader's class so subclass tags
+            # remain available inside imported files.
+            data: JsonValue = yaml.load(f, Loader=type(loader))
+    finally:
+        stack.discard(resolved_str)
+    return data
+
+
+def merge_constructor(loader: yaml.Loader, node: SequenceNode) -> JsonValue:
+    """YAML constructor for !merge. Deep-merges a sequence of mappings left to right."""
+    entries: list[JsonValue] = loader.construct_sequence(node, deep=True)
 
     result: JsonValue = None
-    for import_path in import_paths:
-        if not isinstance(import_path, str):
-            raise ValueError("Import path must be a string")
-        resolved = (base_dir / import_path).resolve()
-        resolved_str = str(resolved)
-        if resolved_str in stack:
-            raise ValueError(f"Circular import detected: {resolved_str}")
-        stack.add(resolved_str)
-        try:
-            with open(resolved, "r") as f:
-                data: JsonValue = yaml.load(f, Loader=NanoArgsLoader)
-                if result is None:
-                    result = data
-                else:
-                    # Deep merge preserves nested keys across imported files
-                    result = deep_merge(result, data)
-        finally:
-            stack.discard(resolved_str)
-
+    for index, entry in enumerate(entries):
+        # Tolerate None entries (e.g. an !import of an empty file).
+        if entry is None:
+            continue
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"!merge entry {index} must be a mapping, got {type(entry).__name__}"
+            )
+        result = entry if result is None else deep_merge(result, entry)
     return result
 
 
 class NanoArgsLoader(yaml.SafeLoader):
-    """YAML SafeLoader with !import and !override tag support."""
+    """YAML SafeLoader with !import, !merge, and !override tag support."""
 
 
 NanoArgsLoader.add_constructor("!import", import_constructor)
+NanoArgsLoader.add_constructor("!merge", merge_constructor)
 NanoArgsLoader.add_constructor("!override", override_constructor)
 
 

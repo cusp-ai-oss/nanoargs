@@ -15,14 +15,14 @@ def write(p: pathlib.Path, content: str):
 
 
 def test_import_merge_and_relative(tmp_path: pathlib.Path):
-    """Test basic import functionality with file merging and relative paths."""
-    # relative layout
+    """Test combining files via !merge and relative path resolution."""
+    # combining files: one !import per file, merged left to right
     a = tmp_path / "a.yaml"
     b = tmp_path / "b.yaml"
     write(a, "x: 1\ny: 2\nz: 3")
     write(b, "y: 3\nz: 4")
     root = tmp_path / "root.yaml"
-    write(root, f"!import\n  - {a.name}\n  - {b.name}")
+    write(root, f"!merge\n  - !import [{a.name}]\n  - !import [{b.name}]")
     with open(root, "r") as f:
         data = yaml.load(f, Loader=Loader)
     assert data == {"x": 1, "y": 3, "z": 4}
@@ -36,6 +36,27 @@ def test_import_merge_and_relative(tmp_path: pathlib.Path):
     with open(rel, "r") as f:
         rel_data = yaml.load(f, Loader=Loader)
     assert rel_data == {"a": 1, "b": 2}
+
+
+def test_import_scalar_form(tmp_path: pathlib.Path):
+    """!import accepts a scalar path as well as a one-element sequence."""
+    write(tmp_path / "values.yaml", "a: 1")
+    root = tmp_path / "root.yaml"
+    write(root, "data: !import values.yaml")
+    with open(root, "r") as f:
+        data = yaml.load(f, Loader=Loader)
+    assert data == {"data": {"a": 1}}
+
+
+def test_import_multiple_paths_rejected(tmp_path: pathlib.Path):
+    """!import with several paths raises and points at !merge."""
+    write(tmp_path / "a.yaml", "x: 1")
+    write(tmp_path / "b.yaml", "y: 2")
+    root = tmp_path / "root.yaml"
+    write(root, "!import\n  - a.yaml\n  - b.yaml")
+    with pytest.raises(ValueError, match="single path.*!merge"):
+        with open(root, "r") as f:
+            yaml.load(f, Loader=Loader)
 
 
 def test_override_constructor(tmp_path: pathlib.Path):
@@ -62,16 +83,13 @@ def test_simple_import_functionality(tmp_path: pathlib.Path):
     assert data == {"simple_val": 123, "other_val": 456}
 
 
-def test_import_multiple_files_basic(tmp_path: pathlib.Path):
-    """Test importing multiple files with basic merging."""
+def test_merge_multiple_files_basic(tmp_path: pathlib.Path):
+    """Test combining multiple files with basic merging via !merge."""
     write(tmp_path / "base.yaml", "a: 1\nb: 2\nc: 0")  # Include 'c' in base
     write(tmp_path / "override.yaml", "b: 20\nc: 3")  # Override 'b' and 'c'
 
     root = tmp_path / "root.yaml"
-    write(
-        root,
-        f"!import\n  - {(tmp_path / 'base.yaml').name}\n  - {(tmp_path / 'override.yaml').name}",
-    )
+    write(root, "!merge\n  - !import [base.yaml]\n  - !import [override.yaml]")
 
     with open(root, "r") as f:
         data = yaml.load(f, Loader=Loader)
@@ -306,17 +324,13 @@ dict_val:
 # === Phase 1 correctness tests ===
 
 
-def test_import_constructor_captures_modify_return_value(tmp_path: pathlib.Path):
-    """import_constructor must capture modify() return value (Bug 1d).
-
-    When the second file completely replaces a top-level scalar value,
-    the replacement must take effect.
-    """
+def test_merge_later_file_replaces_scalars(tmp_path: pathlib.Path):
+    """When a later file replaces a top-level scalar, the replacement takes effect."""
     write(tmp_path / "first.yaml", "a: 1\nb: 2")
     write(tmp_path / "second.yaml", "a: 99\nc: 3")
 
     root = tmp_path / "root.yaml"
-    write(root, "!import\n  - first.yaml\n  - second.yaml")
+    write(root, "!merge\n  - !import [first.yaml]\n  - !import [second.yaml]")
 
     with open(root, "r") as f:
         data = yaml.load(f, Loader=Loader)
@@ -656,8 +670,8 @@ class TestResolveValueYamlCoercion:
 # === Round 2: Phase A tests ===
 
 
-def test_import_deep_merge_nested_dicts(tmp_path: pathlib.Path):
-    """D1: !import must deep-merge nested dicts, not lose keys."""
+def test_merge_deep_merges_nested_dicts(tmp_path: pathlib.Path):
+    """D1: !merge must deep-merge nested dicts, not lose keys."""
     write(
         tmp_path / "first.yaml",
         """
@@ -675,32 +689,32 @@ database:
 """,
     )
     root = tmp_path / "root.yaml"
-    write(root, "!import\n  - first.yaml\n  - second.yaml")
+    write(root, "!merge\n  - !import [first.yaml]\n  - !import [second.yaml]")
     with open(root, "r") as f:
         data = yaml.load(f, Loader=Loader)
     assert data == {"database": {"host": "remote", "port": 5432, "name": "mydb"}}
 
 
 def test_import_type_mismatch_dict_then_list(tmp_path: pathlib.Path):
-    """C1: !import merging dict + list should not crash — list wins."""
+    """C1: !merge of a list-valued file raises a positional error."""
     write(tmp_path / "dict_file.yaml", "a: 1\nb: 2")
     write(tmp_path / "list_file.yaml", "- 1\n- 2\n- 3")
     root = tmp_path / "root.yaml"
-    write(root, "!import\n  - dict_file.yaml\n  - list_file.yaml")
-    with open(root, "r") as f:
-        data = yaml.load(f, Loader=Loader)
-    assert data == [1, 2, 3]
+    write(root, "!merge\n  - !import [dict_file.yaml]\n  - !import [list_file.yaml]")
+    with pytest.raises(ValueError, match="entry 1 must be a mapping"):
+        with open(root, "r") as f:
+            yaml.load(f, Loader=Loader)
 
 
 def test_import_type_mismatch_list_then_dict(tmp_path: pathlib.Path):
-    """C1: !import merging list + dict should not crash — dict wins."""
+    """C1: !merge of a list-valued file raises a positional error."""
     write(tmp_path / "list_file.yaml", "- 1\n- 2")
     write(tmp_path / "dict_file.yaml", "a: 1")
     root = tmp_path / "root.yaml"
-    write(root, "!import\n  - list_file.yaml\n  - dict_file.yaml")
-    with open(root, "r") as f:
-        data = yaml.load(f, Loader=Loader)
-    assert data == {"a": 1}
+    write(root, "!merge\n  - !import [list_file.yaml]\n  - !import [dict_file.yaml]")
+    with pytest.raises(ValueError, match="entry 0 must be a mapping"):
+        with open(root, "r") as f:
+            yaml.load(f, Loader=Loader)
 
 
 def test_resolve_value_empty_json_file(tmp_path: pathlib.Path):
@@ -798,3 +812,70 @@ def test_resolve_value_unsupported_format_ini(tmp_path: pathlib.Path):
     result = resolve_value(f"@{f}")
     assert isinstance(result, str)
     assert "[DEFAULT]" in result
+
+
+# === !merge tag ===
+
+
+def test_merge_files_and_inline_mapping(tmp_path: pathlib.Path):
+    """!merge deep-merges files and inline mappings left to right, later wins."""
+    write(tmp_path / "base.yaml", "steps: 100\nmodel:\n  hidden: 32\n  act: relu")
+    root = tmp_path / "root.yaml"
+    write(
+        root,
+        """\
+        !merge
+          - !import [base.yaml]
+          - model:
+              hidden: 64
+            steps: 300
+        """,
+    )
+    with open(root, "r") as f:
+        data = yaml.load(f, Loader=Loader)
+    assert data == {"steps": 300, "model": {"hidden": 64, "act": "relu"}}
+
+
+def test_merge_skips_none_entries(tmp_path: pathlib.Path):
+    """!merge tolerates None entries such as an !import of an empty file."""
+    write(tmp_path / "empty.yaml", "")
+    root = tmp_path / "root.yaml"
+    write(root, "!merge\n  - !import [empty.yaml]\n  - {a: 1}")
+    with open(root, "r") as f:
+        data = yaml.load(f, Loader=Loader)
+    assert data == {"a": 1}
+
+
+def test_merge_rejects_non_mapping_entry(tmp_path: pathlib.Path):
+    """!merge raises on entries that are not mappings, naming the position."""
+    root = tmp_path / "root.yaml"
+    write(root, "!merge\n  - {a: 1}\n  - 42")
+    with pytest.raises(ValueError, match="entry 1 must be a mapping"):
+        with open(root, "r") as f:
+            yaml.load(f, Loader=Loader)
+
+
+def test_merge_empty_returns_none(tmp_path: pathlib.Path):
+    """!merge of an empty sequence yields None, like !import."""
+    root = tmp_path / "root.yaml"
+    write(root, "!merge []")
+    with open(root, "r") as f:
+        assert yaml.load(f, Loader=Loader) is None
+
+
+def test_import_preserves_loader_subclass(tmp_path: pathlib.Path):
+    """Imported files load with the referring loader's class, keeping subclass tags."""
+
+    class SubclassLoader(Loader):
+        pass
+
+    SubclassLoader.add_constructor("!upper", lambda ldr, node: str(node.value).upper())
+
+    write(tmp_path / "inner.yaml", "word: !upper abc")
+    root = tmp_path / "root.yaml"
+    write(root, "!import [inner.yaml]")
+    with open(root, "r") as f:
+        data = yaml.load(f, Loader=SubclassLoader)
+    assert data == {"word": "ABC"}
+    # The base loader stays untouched by the subclass tag.
+    assert "!upper" not in Loader.yaml_constructors

@@ -5,7 +5,8 @@ A tiny, opinionated configuration loader and CLI framework built around Pydantic
 ## Features
 
 - **YAML Configuration Loading** — load and merge multiple files with left-to-right precedence
-- **Smart Imports** — `!import` with deep-merging, paths resolved relative to the importing file
+- **Smart Imports** — `!import` loads one file, path resolved relative to the importing file
+- **Composable Merging** — `!merge` deep-merges imports and inline mappings left to right
 - **Runtime Overrides** — JSONPath-like syntax via `--override`
 - **Pydantic Validation** — automatic validation and type coercion
 - **Schema Generation** — `--print-schema` renders a formatted JSON schema; `--print-config` dumps the merged result

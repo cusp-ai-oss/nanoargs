@@ -11,16 +11,12 @@ NanoArgs merges configuration files left to right:
 
 ## Import System
 
-The `!import` directive loads external YAML files with paths resolved relative to the importing file.
+The `!import` directive loads a single external YAML file, its path resolved relative to the importing file. Both the scalar form (`!import file.yaml`) and the one-element sequence form (`!import [file.yaml]`) are accepted; combining several files is `!merge`'s job.
 
 ### Document-Level Import
 
-Deep-merges the listed files:
-
 ```yaml
-!import
-  - database.yaml
-  - logging.yaml
+!import base.yaml
 ```
 
 ### Field-Level Import
@@ -30,8 +26,8 @@ Imports into a specific key:
 ```yaml
 app_name: myapp
 version: 1.0.0
-database: !import ["database.yaml"]
-settings: !import ["settings.yaml"]
+database: !import [database.yaml]
+settings: !import [settings.yaml]
 ```
 
 ### Relative Path Resolution
@@ -47,6 +43,31 @@ Then `subdir/db.yaml` is resolved relative to `/path/to/`, not the current worki
 ### Circular Import Detection
 
 NanoArgs detects circular imports and raises a clear error. Import tracking is thread-local so concurrent loads are safe.
+
+## Merge System (`!merge`)
+
+The `!merge` directive deep-merges a sequence of mappings left to right — later entries win. Entries can be `!import` results, inline mappings, or any mix, which makes "import a file, then tweak a few values" a one-liner:
+
+```yaml
+model: !merge
+  - !import [models/base.yaml]
+  - hidden: 64
+    dropout: 0.1
+```
+
+Combining several files is the same pattern — one `!import` per file:
+
+```yaml
+!merge
+  - !import [database.yaml]
+  - !import [logging.yaml]
+```
+
+Rules:
+
+- Every entry must be a mapping; anything else raises an error naming the position.
+- `None` entries (e.g. an `!import` of an empty file) are skipped.
+- Deep merge: nested dicts merge recursively, other values are replaced.
 
 ## Override System
 

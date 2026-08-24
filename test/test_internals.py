@@ -9,6 +9,7 @@ functions that are otherwise only tested indirectly through integration tests.
 
 import pathlib
 import textwrap
+from enum import Enum, IntEnum
 
 import pytest
 
@@ -57,10 +58,40 @@ class TestCoerceDefault:
         assert result == {"x": 42, "y": "hello"}
 
     def test_enum_value_happy_path(self):
-        class FakeEnum:
-            value = "red"
+        class Color(Enum):
+            RED = "red"
 
-        assert NanoArgs._coerce_default(FakeEnum()) == "red"
+        assert NanoArgs._coerce_default(Color.RED) == "red"
+
+    def test_enum_mutable_value_is_copied(self):
+        class Opts(Enum):
+            DEFAULT = {"a": 1}
+
+        result = NanoArgs._coerce_default(Opts.DEFAULT)
+        assert result == {"a": 1}
+        assert result is not Opts.DEFAULT.value  # deepcopy
+
+    def test_enum_value_non_json_value(self):
+        class Weird(Enum):
+            W = object()
+
+        with pytest.raises(TypeError, match="Enum .value is non-JsonValue"):
+            NanoArgs._coerce_default(Weird.W)
+
+    def test_int_enum_kept_as_member(self):
+        # int/str based members are JsonValue already, so they pass through as members.
+        class Speed(IntEnum):
+            FAST = 1
+
+        assert NanoArgs._coerce_default(Speed.FAST) is Speed.FAST
+
+    def test_duck_typed_value_not_treated_as_enum(self):
+        class Version:
+            def __init__(self) -> None:
+                self.value = [1, 2]
+
+        with pytest.raises(TypeError, match="Cannot coerce Version"):
+            NanoArgs._coerce_default(Version())
 
     def test_fallback_type_error(self):
         with pytest.raises(TypeError, match="Cannot coerce"):

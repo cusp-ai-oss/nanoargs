@@ -8,6 +8,7 @@ import copy
 import sys
 import types
 from collections.abc import Sequence
+from enum import Enum
 from typing import ClassVar, Generic, TypeVar, Union, cast, get_args, get_origin
 
 import rich
@@ -147,11 +148,16 @@ class NanoArgs(Generic[_ModelT]):
         Raises:
             ValueError: If `model` is a `Nested` subclass with no detectable subcommand
                 fields (i.e. no `T | None = None` typed fields where `T` is a model).
+            TypeError: If a field default cannot be coerced to a JsonValue.
         """
         self.model = model
         self._prog = prog
         self.adapter: TypeAdapter[_ModelT] = TypeAdapter(model)
-        self.schema: SchemaDict = self.adapter.json_schema()
+        self.schema: SchemaDict = (
+            model.model_json_schema()
+            if issubclass(model, BaseModel)
+            else self.adapter.json_schema()
+        )
         self._subcommands: dict[str, type[object]] | None = self._detect_subcommands(
             model
         )
@@ -372,7 +378,23 @@ class NanoArgs(Generic[_ModelT]):
     # ----- core helpers -----
     @staticmethod
     def _coerce_default(value: object) -> JsonValue:
-        """Coerce a Pydantic field default to JsonValue."""
+        """Coerce a Pydantic field default to JsonValue.
+
+        Handled in order: objects with `model_dump()`, values that are already
+        JsonValue (returned as a deep copy — an `int`/`str` based enum member stays
+        the member), pydantic dataclasses (via `__pydantic_fields__`), and
+        `enum.Enum` members (unwrapped to their `.value`).
+
+        Args:
+            value: The field default to coerce.
+
+        Returns:
+            The default as a JsonValue.
+
+        Raises:
+            TypeError: If `value` is not one of the handled kinds, or if the value it
+                unwraps to is not a JsonValue.
+        """
         if hasattr(value, "model_dump"):
             dumped: object = getattr(value, "model_dump")()
             if is_json_value(dumped):
@@ -393,10 +415,10 @@ class NanoArgs(Generic[_ModelT]):
                     )
                 result[k] = attr
             return result
-        if hasattr(value, "value"):
-            enum_val: object = getattr(value, "value")
+        if isinstance(value, Enum):
+            enum_val: object = value.value
             if is_json_value(enum_val):
-                return enum_val
+                return copy.deepcopy(enum_val)
             raise TypeError(f"Enum .value is non-JsonValue: {type(enum_val).__name__}")
         raise TypeError(f"Cannot coerce {type(value).__name__} to JsonValue")
 
@@ -480,6 +502,10 @@ class NanoArgs(Generic[_ModelT]):
 
     def get_schema(self) -> SchemaDict:
         """Return the JSON schema dict for the model.
+
+        `BaseModel` subclasses are described by their own `model_json_schema()`, so
+        overrides of that hook are honoured; other model kinds (pydantic dataclasses)
+        are described by a `TypeAdapter`.
 
         For `Nested` models this returns the wrapper model's schema (with subcommand shapes
         in `$defs`). To print a specific subcommand's schema from the CLI, use:

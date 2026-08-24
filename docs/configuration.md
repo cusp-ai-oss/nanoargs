@@ -134,6 +134,8 @@ From the CLI, `@file` paths resolve relative to the **current working directory*
 
 `--print-schema` renders a human-readable table of the model's JSON schema. Understanding its notation helps when working with complex types.
 
+The schema comes from the top-level model's own `model_json_schema()` for `BaseModel` subclasses (so overrides of that hook are used) and from a `TypeAdapter` for pydantic dataclasses. The override is called with no arguments, so it must accept pydantic's signature (or `*args, **kwargs`). As in pydantic, nested submodel shapes listed under `$defs` come from the parent's schema generation, so a submodel's own override is not applied there — a subcommand's own `--print-schema` does use it.
+
 ### Field type column
 
 Each field's type is rendered compactly:

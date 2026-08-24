@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Schema output now comes from the top-level `BaseModel`'s own `model_json_schema()`, so an override of that hook is honoured by `--print-schema`, the help epilog, and `get_schema()`. It is called with no arguments, so an override that requires extra parameters raises `TypeError` when the `NanoArgs` instance is built. As in pydantic, nested submodel shapes under `$defs` come from the parent's schema generation, so a submodel's own override is not applied there; a subcommand's own `--print-schema` does use it. Pydantic dataclasses keep using `TypeAdapter`.
+- **Breaking**: only real `enum.Enum` members are unwrapped to their `.value` when collecting field defaults. Any other default carrying a `.value` attribute (quantities, boxed or lazy wrappers) now raises `TypeError: Cannot coerce <Type> to JsonValue` when the `NanoArgs` instance is built, instead of silently becoming that attribute. Such a default has to be representable as JSON — e.g. via the owning model's `model_dump()`.
+
 ## 0.2.0
 
 **Composable merging — one job per tag**:

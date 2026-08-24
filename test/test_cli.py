@@ -1,6 +1,7 @@
 # Copyright 2024-2026 Cusp AI
 # SPDX-License-Identifier: Apache-2.0
 
+import datetime
 import json
 import pathlib
 import textwrap
@@ -8,7 +9,7 @@ from enum import Enum
 from typing import Annotated, Any, List, Literal, Optional
 
 import pytest
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_serializer
 
 from nanoargs.cli import NanoArgs
 from nanoargs.path import Path
@@ -854,8 +855,40 @@ def test_duck_typed_default_rejected():
     class Cfg(BaseModel):
         version: Any = Version()
 
-    with pytest.raises(TypeError, match="Cannot coerce Version"):
+    with pytest.raises(TypeError, match="Version"):
         NanoArgs(Cfg)
+
+
+def test_non_json_default_serialized_by_model():
+    """A default the model can serialize but that is not natively JSON is kept."""
+
+    class Cfg(BaseModel):
+        when: datetime.datetime = datetime.datetime(2020, 1, 1)
+
+    assert NanoArgs(Cfg)._cached_defaults == {"when": "2020-01-01T00:00:00"}
+
+
+def test_default_uses_field_serializer():
+    """A field's own serializer should shape its collected default."""
+
+    class Cfg(BaseModel):
+        width: float = 2.5
+
+        @field_serializer("width")
+        def _ser_width(self, v: float) -> str:
+            return f"{v} m"
+
+    assert NanoArgs(Cfg)._cached_defaults == {"width": "2.5 m"}
+
+
+def test_defaults_omit_required_fields():
+    """Fields without a default should be absent from the collected defaults."""
+
+    class Cfg(BaseModel):
+        must: str
+        opt: int = 1
+
+    assert NanoArgs(Cfg)._cached_defaults == {"opt": 1}
 
 
 def test_type_repr_const_none():

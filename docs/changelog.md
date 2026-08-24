@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Schema output now comes from the top-level `BaseModel`'s own `model_json_schema()`, so an override of that hook is honoured by `--print-schema`, the help epilog, and `get_schema()`. It is called with no arguments, so an override that requires extra parameters raises `TypeError` when the `NanoArgs` instance is built. As in pydantic, nested submodel shapes under `$defs` come from the parent's schema generation, so a submodel's own override is not applied there; a subcommand's own `--print-schema` does use it. Pydantic dataclasses keep using `TypeAdapter`.
-- **Breaking**: only real `enum.Enum` members are unwrapped to their `.value` when collecting field defaults. Any other default carrying a `.value` attribute (quantities, boxed or lazy wrappers) now raises `TypeError: Cannot coerce <Type> to JsonValue` when the `NanoArgs` instance is built, instead of silently becoming that attribute. Such a default has to be representable as JSON — e.g. via the owning model's `model_dump()`.
+- Defaults of a `BaseModel` are now collected through the model's own `model_construct().model_dump(mode="json")`, so a field type that is not natively JSON — a quantity, a `datetime`, a custom scalar — is represented by the model's serializers instead of being rejected. Field serializers therefore shape the collected default. A default the model cannot serialize raises `TypeError: Cannot represent defaults of <Model> as JsonValue: ...` when the `NanoArgs` instance is built. Pydantic dataclasses keep the per-value coercion.
+- **Breaking**: for pydantic dataclasses, only real `enum.Enum` members are unwrapped to their `.value` when collecting field defaults. Any other default carrying a `.value` attribute (boxed or lazy wrappers) now raises `TypeError: Cannot coerce <Type> to JsonValue` instead of silently becoming that attribute.
 
 ## 0.2.0
 

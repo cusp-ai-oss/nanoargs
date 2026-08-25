@@ -5,7 +5,7 @@ import json
 import pathlib
 import textwrap
 from enum import Enum
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, Any, List, Literal, Optional
 
 import pytest
 from pydantic import BaseModel, Field, ValidationError
@@ -827,6 +827,37 @@ def test_get_model_defaults_basemodel_instance(tmp_path: pathlib.Path):
     assert c.inner.y == 20
 
 
+def test_enum_default_round_trip(tmp_path: pathlib.Path):
+    """An Enum field default should survive the merge pipeline as its member."""
+
+    class Mode(Enum):
+        FAST = "fast"
+
+    class Cfg(BaseModel):
+        name: str
+        mode: Mode = Mode.FAST
+
+    cfg = tmp_path / "c.yaml"
+    write(cfg, "name: test")
+
+    assert NanoArgs(Cfg).parse(argv=[str(cfg)]).mode is Mode.FAST
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_duck_typed_default_rejected():
+    """A non-Enum default carrying `.value` should raise, not coerce to `.value`."""
+
+    class Version:
+        def __init__(self) -> None:
+            self.value = [1, 2]
+
+    class Cfg(BaseModel):
+        version: Any = Version()
+
+    with pytest.raises(TypeError, match="Cannot coerce Version"):
+        NanoArgs(Cfg)
+
+
 def test_type_repr_const_none():
     """_type_repr should handle {"const": None} without returning 'Unknown' (Bug 1g)."""
     from rich.text import Text
@@ -845,6 +876,21 @@ def test_get_schema_returns_dict():
     assert isinstance(schema, dict)
     assert "properties" in schema
     assert "a" in schema["properties"]
+
+
+def test_model_json_schema_override_honored():
+    """A model's own model_json_schema() override should reach the CLI schema."""
+
+    class OverrideCfg(BaseModel):
+        mode: str = "train"
+
+        @classmethod
+        def model_json_schema(cls, *args, **kwargs) -> dict:
+            out = super().model_json_schema(*args, **kwargs)
+            out["x-from-model"] = True
+            return out
+
+    assert NanoArgs(OverrideCfg).get_schema()["x-from-model"] is True
 
 
 def test_nonexistent_config_file_error_message(tmp_path: pathlib.Path):

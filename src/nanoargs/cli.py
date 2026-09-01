@@ -13,7 +13,7 @@ from typing import ClassVar, Generic, TypeVar, Union, cast, get_args, get_origin
 
 import rich
 from pydantic import BaseModel, TypeAdapter
-from pydantic_core import PydanticUndefined
+from pydantic_core import PydanticSerializationError, PydanticUndefined
 from rich import box
 from rich.console import Console, Group
 from rich.markup import escape
@@ -378,7 +378,10 @@ class NanoArgs(Generic[_ModelT]):
     # ----- core helpers -----
     @staticmethod
     def _coerce_default(value: object) -> JsonValue:
-        """Coerce a Pydantic field default to JsonValue.
+        """Coerce a single field default to JsonValue.
+
+        Used for model kinds that carry no serializers of their own (pydantic
+        dataclasses); `BaseModel` defaults are serialized by the model instead.
 
         Handled in order: objects with `model_dump()`, values that are already
         JsonValue (returned as a deep copy — an `int`/`str` based enum member stays
@@ -424,7 +427,32 @@ class NanoArgs(Generic[_ModelT]):
 
     @staticmethod
     def _get_model_defaults(model_type: type[object]) -> dict[str, JsonValue]:
-        """Extract default values from a Pydantic model or dataclass."""
+        """Extract default values from a Pydantic model or dataclass.
+
+        `BaseModel` subclasses are serialized by the model itself, so field types that
+        are not natively JSON are represented through the model's own serializers.
+        Other model kinds (pydantic dataclasses) have each field default coerced
+        individually. Fields without a default are absent either way.
+
+        Args:
+            model_type: The model or dataclass type to read defaults from.
+
+        Returns:
+            Mapping of field name to that field's default, JsonValue throughout.
+
+        Raises:
+            TypeError: If a default cannot be represented as a JsonValue.
+        """
+        if issubclass(model_type, BaseModel):
+            try:
+                dumped = model_type.model_construct().model_dump(mode="json")
+            except PydanticSerializationError as exc:
+                raise TypeError(
+                    f"Cannot represent defaults of {model_type.__name__} as "
+                    f"JsonValue: {exc}"
+                ) from exc
+            return cast(dict[str, JsonValue], dumped)
+
         defaults: dict[str, JsonValue] = {}
 
         fields_dict: dict[str, object] | None = None
